@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ministry of Tribal Affairs - WebGIS Portal</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- LeafletJS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- html2pdf.js for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" xintegrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent body scroll */
+        }
+        /* Custom Leaflet popup styles */
+        .leaflet-popup-content-wrapper {
+            background-color: #f9fafb;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .leaflet-popup-content {
+            margin: 15px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .leaflet-popup-tip {
+            background: #f9fafb;
+        }
+        /* Custom scrollbar for info panel */
+        #info-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        #info-panel::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        #info-panel::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 3px;
+        }
+        #info-panel::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .layer-checkbox:checked + label {
+            background-color: #1e40af; /* dark blue */
+            color: white;
+            border-color: #1e40af;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md z-30">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Emblem_of_India.svg/120px-Emblem_of_India.svg.png" alt="Emblem of India" class="h-10 w-10">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">Ministry of Tribal Affairs Geo-Portal</h1>
+                    <p class="text-sm text-gray-500">Government of India</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="relative w-72">
+                    <input type="text" id="search-box" placeholder="Search by Village or Land ID..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <button class="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition font-semibold">Login</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex">
+        <!-- Layer Control Panel -->
+        <div class="bg-white p-4 shadow-lg w-72 flex-shrink-0 overflow-y-auto space-y-4">
+            
+            <!-- Map Layers Section (Collapsible) -->
+            <div>
+                <button id="toggle-layers-btn" class="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none transition">
+                    <span class="text-lg font-bold text-gray-700">Map Layers</span>
+                    <svg id="layers-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div id="layers-content" class="hidden mt-2 pl-2 space-y-3">
+                    <div>
+                        <h3 class="font-semibold text-gray-600 mb-2">Base Layers</h3>
+                        <div id="base-layers"></div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-gray-600 mb-2">Overlay Layers</h3>
+                        <div id="overlay-layers"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Government Schemes Section (Collapsible) -->
+            <div class="border-t pt-4">
+                 <button id="toggle-schemes-btn" class="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none transition">
+                    <span class="text-lg font-bold text-gray-700">Schemes</span>
+                    <svg id="schemes-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div id="schemes-content" class="hidden mt-2 pl-2">
+                    <div id="schemes-list" class="space-y-1 text-sm">
+                        <!-- JS will populate this -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Query Section -->
+            <div class="border-t pt-4">
+                <button id="toggle-query-btn" class="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none transition">
+                    <span class="text-lg font-bold text-gray-700">Queries</span>
+                    <svg id="query-arrow" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div id="query-content" class="hidden mt-2 pl-2">
+                    <form id="query-form" class="space-y-3 text-sm">
+                        <div>
+                            <label for="query-name" class="block font-medium text-gray-700">Name</label>
+                            <input type="text" id="query-name" required class="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="query-email" class="block font-medium text-gray-700">Email</label>
+                            <input type="email" id="query-email" required class="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label for="query-text" class="block font-medium text-gray-700">Your Question</label>
+                            <textarea id="query-text" rows="3" required class="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        </div>
+                        <div>
+                            <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition flex items-center justify-center shadow">Submit Query</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map and Info Panel Container -->
+        <div class="flex-grow relative">
+            <!-- Map Container -->
+            <div id="map" class="h-full w-full"></div>
+
+            <!-- Information Panel -->
+            <div id="info-panel-container" class="absolute top-4 right-4 h-[calc(100%-2rem)] w-96 bg-white bg-opacity-90 backdrop-blur-sm rounded-lg shadow-lg z-10 transform translate-x-[110%] transition-transform duration-500 ease-in-out">
+                <div id="info-panel-content" class="h-full flex flex-col">
+                    <div class="p-4 border-b flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-gray-800" id="info-title">Land Details</h2>
+                        <button id="close-info-panel" class="text-gray-500 hover:text-gray-800">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    <div id="info-panel" class="overflow-y-auto p-4 flex-grow">
+                        <!-- Default message -->
+                        <div id="info-default" class="text-center text-gray-500 mt-10">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-6 6m0-6l6 6M9 9l6-6m0 6l-6-6m-3 9h18v4H6v-4z"/>
+                            </svg>
+                            <p class="mt-2 font-semibold">Select a land parcel on the map</p>
+                            <p class="text-sm">Click on a highlighted area to view its details, including ownership, FRA status, applicable schemes, and AI-generated analysis.</p>
+                        </div>
+                        <!-- Dynamic content will be injected here -->
+                        <div id="info-details" class="hidden space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- MAP INITIALIZATION ---
+            const map = L.map('map').setView([23.63, 85.33], 13); // Centered on Khunti, Jharkhand
+
+            // --- TILE LAYERS (BASE MAPS) ---
+            const topoTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
+            });
+
+            const satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            });
+            
+            const streetsTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            });
+
+            topoTile.addTo(map); // Set Topographic map as the default
+
+            // --- MOCK GEOJSON DATA ---
+            // This data would typically be fetched from a server API
+            const landParcelsData = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {
+                            "land_id": "JH-KH-001A", "owner": "Birsa Munda", "area_ha": 2.5, "fra_status": "Individual Claim Approved",
+                            "soil_type": "Red Loam", "water_source": "Well, Seasonal Stream", "is_residential": false,
+                            "schemes": ["Pradhan Mantri Kisan Samman Nidhi", "National Food Security Mission"],
+                            "ai_analysis": "High potential for maize and millet cultivation. Soil moisture retention is moderate. Recommended to build check dams on the seasonal stream to improve water availability for a second crop.",
+                            "ai_suitability_score": 8.2
+                        },
+                        "geometry": { "type": "Polygon", "coordinates": [[ [85.32, 23.64], [85.325, 23.642], [85.326, 23.638], [85.321, 23.636], [85.32, 23.64] ]] }
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": {
+                            "land_id": "JH-KH-002B", "owner": "Sumati Oraon", "area_ha": 1.8, "fra_status": "Community Forest Resource",
+                            "soil_type": "Sandy Loam", "water_source": "Pond", "is_residential": false,
+                            "schemes": ["Mahatma Gandhi National Rural Employment Guarantee Act (MGNREGA)"],
+                            "ai_analysis": "Suitable for agroforestry and horticulture (mango, jackfruit). The nearby pond can be utilized for fisheries to supplement income. Soil requires organic manure to improve fertility.",
+                            "ai_suitability_score": 7.5
+                        },
+                        "geometry": { "type": "Polygon", "coordinates": [[ [85.33, 23.63], [85.335, 23.632], [85.336, 23.628], [85.331, 23.626], [85.33, 23.63] ]] }
+                    },
+                     {
+                        "type": "Feature",
+                        "properties": {
+                            "land_id": "JH-KH-003C", "owner": "Community Land", "area_ha": 5.1, "fra_status": "Community Forest Resource",
+                            "soil_type": "Laterite Soil", "water_source": "Rain-fed", "is_residential": false,
+                            "schemes": ["Van Dhan Vikas Kendra"],
+                            "ai_analysis": "Ideal for cultivation of minor forest produce like Lac and Sal leaves. Water conservation structures like contour trenches are highly recommended to combat runoff on the sloped terrain.",
+                            "ai_suitability_score": 6.8
+                        },
+                        "geometry": { "type": "Polygon", "coordinates": [[ [85.34, 23.645], [85.345, 23.647], [85.346, 23.643], [85.341, 23.641], [85.34, 23.645] ]] }
+                    }
+                ]
+            };
+            
+            const residentialData = {
+                 "type": "FeatureCollection",
+                 "features": [
+                    { "type": "Feature", "properties": {"name": "Ulihatu Village"}, "geometry": { "type": "Point", "coordinates": [85.328, 23.635] } }
+                 ]
+            };
+
+            const waterData = {
+                 "type": "FeatureCollection",
+                 "features": [
+                    { "type": "Feature", "properties": {"name": "Tajma River"}, "geometry": { "type": "LineString", "coordinates": [ [85.31, 23.65], [85.32, 23.645], [85.33, 23.638], [85.34, 23.63] ] } },
+                    { "type": "Feature", "properties": {"name": "Local Pond"}, "geometry": { "type": "Polygon", "coordinates": [[ [85.332, 23.631], [85.334, 23.6315], [85.333, 23.629], [85.332, 23.631] ]] } }
+                 ]
+            };
+
+            // --- LAYER STYLING ---
+            const landParcelStyle = { color: "#e879f9", weight: 2, opacity: 0.8, fillOpacity: 0.3 };
+            const highlightedStyle = { color: "#1d4ed8", weight: 3, opacity: 1, fillOpacity: 0.5 };
+            const waterStyle = { color: "#3b82f6", weight: 3 };
+            const aiAtlasStyle = (score) => {
+                return {
+                    weight: 1,
+                    opacity: 1,
+                    color: 'white',
+                    fillOpacity: 0.7,
+                    fillColor: score > 8 ? '#16a34a' : score > 7 ? '#facc15' : '#ef4444' // green, yellow, red
+                };
+            };
+            const residentialIcon = L.divIcon({
+                html: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-gray-700"><path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" /><path d="M12 5.432l8.159 8.159c.026.026.05.054.07.084v6.101a2.25 2.25 0 01-2.25 2.25H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.25a2.25 2.25 0 01-2.25-2.25V13.675c.02-.03.044-.058.07-.084L12 5.432z" /></svg>',
+                className: '',
+                iconSize: [24, 24],
+                iconAnchor: [12, 24]
+            });
+
+
+            // --- GEOJSON LAYERS ---
+            let selectedParcelLayer = null;
+
+            const landParcelsLayer = L.geoJSON(landParcelsData, {
+                style: landParcelStyle,
+                onEachFeature: (feature, layer) => {
+                    layer.on('click', (e) => {
+                        // Reset previous selection
+                        if (selectedParcelLayer) {
+                            landParcelsLayer.resetStyle(selectedParcelLayer);
+                        }
+                        
+                        // Highlight current selection
+                        selectedParcelLayer = e.target;
+                        selectedParcelLayer.setStyle(highlightedStyle);
+                        selectedParcelLayer.bringToFront();
+                        
+                        // Display info
+                        displayInfo(feature.properties);
+                    });
+                }
+            }).bindTooltip(l => `Land ID: ${l.feature.properties.land_id}<br>Owner: ${l.feature.properties.owner}`, {sticky: true});
+
+            const waterLayer = L.geoJSON(waterData, { style: waterStyle });
+            
+            const residentialLayer = L.geoJSON(residentialData, {
+                pointToLayer: (feature, latlng) => L.marker(latlng, { icon: residentialIcon })
+            }).bindPopup(l => `<b>${l.feature.properties.name}</b>`);
+
+            const soilLayer = L.geoJSON(landParcelsData, {
+                style: (feature) => {
+                    const soilType = feature.properties.soil_type;
+                    let color = '#a16207'; // default brown
+                    if (soilType === "Red Loam") color = '#b91c1c';
+                    if (soilType === "Sandy Loam") color = '#f59e0b';
+                    if (soilType === "Laterite Soil") color = '#fca5a5';
+                    return { color: color, weight: 1, fillOpacity: 0.6 };
+                }
+            }).bindTooltip(l => `Soil Type: ${l.feature.properties.soil_type}`);
+            
+            const fraAtlasLayer = L.geoJSON(landParcelsData, {
+                style: (feature) => {
+                    const status = feature.properties.fra_status;
+                    let color = '#4b5563'; // default gray
+                    if (status.includes("Approved")) color = '#15803d';
+                    if (status.includes("Community")) color = '#06b6d4';
+                    return { color: color, weight: 1, fillOpacity: 0.6 };
+                }
+            }).bindTooltip(l => `FRA Status: ${l.feature.properties.fra_status}`);
+
+            const aiAtlasLayer = L.geoJSON(landParcelsData, {
+                style: (feature) => aiAtlasStyle(feature.properties.ai_suitability_score)
+            }).bindTooltip(l => `AI Suitability Score: <b>${l.feature.properties.ai_suitability_score}</b>/10`);
+
+            // --- LAYER CONTROL ---
+            const baseLayers = {
+                "Topographic": topoTile,
+                "Satellite": satelliteTile,
+                "Streets": streetsTile
+            };
+
+            const overlayLayers = {
+                "Land Parcels": landParcelsLayer,
+                "FRA Atlas": fraAtlasLayer,
+                "Soil Map": soilLayer,
+                "AI Generated Atlas": aiAtlasLayer,
+                "Water Resources": waterLayer,
+                "Residential Areas": residentialLayer
+            };
+            
+            // Add default layers to map
+            landParcelsLayer.addTo(map);
+            fraAtlasLayer.addTo(map);
+            soilLayer.addTo(map);
+            waterLayer.addTo(map);
+            residentialLayer.addTo(map);
+
+            // Dynamically create layer controls
+            const baseLayersContainer = document.getElementById('base-layers');
+            Object.keys(baseLayers).forEach((name, index) => {
+                const id = `base-${index}`;
+                const div = document.createElement('div');
+                div.innerHTML = `
+                    <input type="radio" id="${id}" name="baseLayer" class="hidden" value="${name}" ${index === 0 ? 'checked' : ''}>
+                    <label for="${id}" class="cursor-pointer block text-sm font-medium text-gray-700 border border-gray-300 rounded-md px-3 py-2 text-center transition hover:bg-gray-100">${name}</label>
+                `;
+                baseLayersContainer.appendChild(div.firstElementChild);
+                baseLayersContainer.appendChild(div.lastElementChild);
+            });
+            
+            document.querySelectorAll('input[name="baseLayer"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    map.eachLayer(l => { if(l instanceof L.TileLayer) map.removeLayer(l); });
+                    baseLayers[e.target.value].addTo(map);
+                });
+            });
+
+
+            const overlayLayersContainer = document.getElementById('overlay-layers');
+            Object.keys(overlayLayers).forEach((name, index) => {
+                 const id = `overlay-${index}`;
+                 const div = document.createElement('div');
+                 const isChecked = map.hasLayer(overlayLayers[name]);
+                 div.innerHTML = `
+                    <input type="checkbox" id="${id}" name="overlayLayer" class="hidden layer-checkbox" value="${name}" ${isChecked ? 'checked' : ''}>
+                    <label for="${id}" class="cursor-pointer block text-sm font-medium text-gray-700 border border-gray-300 rounded-md px-3 py-2 text-center transition hover:bg-gray-100">${name}</label>
+                 `;
+                 overlayLayersContainer.appendChild(div.firstElementChild);
+                 overlayLayersContainer.appendChild(div.lastElementChild);
+            });
+            
+             document.querySelectorAll('input[name="overlayLayer"]').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        overlayLayers[e.target.value].addTo(map);
+                    } else {
+                        map.removeLayer(overlayLayers[e.target.value]);
+                    }
+                });
+            });
+
+
+            // --- COLLAPSIBLE SIDEBAR SECTIONS ---
+            const toggleLayersBtn = document.getElementById('toggle-layers-btn');
+            const layersContent = document.getElementById('layers-content');
+            const layersArrow = document.getElementById('layers-arrow');
+
+            toggleLayersBtn.addEventListener('click', () => {
+                layersContent.classList.toggle('hidden');
+                layersArrow.classList.toggle('rotate-180');
+            });
+
+            const toggleSchemesBtn = document.getElementById('toggle-schemes-btn');
+            const schemesContent = document.getElementById('schemes-content');
+            const schemesArrow = document.getElementById('schemes-arrow');
+
+            toggleSchemesBtn.addEventListener('click', () => {
+                schemesContent.classList.toggle('hidden');
+                schemesArrow.classList.toggle('rotate-180');
+            });
+
+            const toggleQueryBtn = document.getElementById('toggle-query-btn');
+            const queryContent = document.getElementById('query-content');
+            const queryArrow = document.getElementById('query-arrow');
+
+            toggleQueryBtn.addEventListener('click', () => {
+                queryContent.classList.toggle('hidden');
+                queryArrow.classList.toggle('rotate-180');
+            });
+
+
+            // --- SCHEMES FILTER LOGIC ---
+            const allSchemes = landParcelsData.features.flatMap(feature => feature.properties.schemes);
+            const uniqueSchemes = [...new Set(allSchemes)];
+            const schemesListContainer = document.getElementById('schemes-list');
+
+            uniqueSchemes.forEach(scheme => {
+                const schemeElement = document.createElement('div');
+                schemeElement.innerHTML = `
+                    <button class="w-full text-left p-2 rounded-md hover:bg-gray-100 focus:outline-none focus:bg-blue-100 focus:ring-1 focus:ring-blue-500 transition">${scheme}</button>
+                `;
+                schemeElement.querySelector('button').addEventListener('click', (e) => {
+                    document.querySelectorAll('#schemes-list button').forEach(btn => btn.classList.remove('bg-blue-100', 'font-semibold'));
+                    e.currentTarget.classList.add('bg-blue-100', 'font-semibold');
+                    highlightParcelsByScheme(scheme);
+                });
+                schemesListContainer.appendChild(schemeElement);
+            });
+
+            const clearButton = document.createElement('div');
+            clearButton.innerHTML = `<button class="w-full text-center text-sm p-2 mt-2 text-blue-600 hover:underline">Clear Filter</button>`;
+            clearButton.querySelector('button').addEventListener('click', () => {
+                document.querySelectorAll('#schemes-list button').forEach(btn => btn.classList.remove('bg-blue-100', 'font-semibold'));
+                landParcelsLayer.eachLayer(layer => landParcelsLayer.resetStyle(layer));
+            });
+            schemesListContainer.appendChild(clearButton);
+
+            function highlightParcelsByScheme(schemeName) {
+                if (selectedParcelLayer) {
+                    landParcelsLayer.resetStyle(selectedParcelLayer);
+                    selectedParcelLayer = null;
+                }
+                closeInfoPanel();
+                
+                landParcelsLayer.eachLayer(layer => {
+                    if (layer.feature.properties.schemes.includes(schemeName)) {
+                        layer.setStyle({ color: '#c026d3', weight: 3, opacity: 1, fillOpacity: 0.6 }); // Magenta highlight
+                        layer.bringToFront();
+                    } else {
+                        layer.setStyle({ color: "#9ca3af", weight: 1, opacity: 0.5, fillOpacity: 0.1 });
+                    }
+                });
+            }
+
+            // --- QUERY FORM LOGIC ---
+            document.getElementById('query-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const form = e.target;
+                const submitButton = form.querySelector('button[type="submit"]');
+                
+                if (form.checkValidity()) {
+                    submitButton.textContent = 'Submitted successfully!';
+                    submitButton.disabled = true;
+                    submitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    submitButton.classList.add('bg-green-600');
+                    
+                    setTimeout(() => {
+                        submitButton.textContent = 'Submit Query';
+                        submitButton.disabled = false;
+                        submitButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                        submitButton.classList.remove('bg-green-600');
+                        form.reset();
+                    }, 3000);
+                }
+            });
+
+            // --- INFO PANEL LOGIC ---
+            const infoPanelContainer = document.getElementById('info-panel-container');
+            const infoDefault = document.getElementById('info-default');
+            const infoDetails = document.getElementById('info-details');
+
+            function displayInfo(props) {
+                infoDefault.classList.add('hidden');
+                infoDetails.classList.remove('hidden');
+                
+                const scoreColor = props.ai_suitability_score > 8 ? 'bg-green-100 text-green-800' : props.ai_suitability_score > 7 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+
+                infoDetails.innerHTML = `
+                    <div class="pb-3 border-b">
+                        <p class="text-sm text-gray-500">Land ID</p>
+                        <p class="font-bold text-lg text-blue-800">${props.land_id}</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 pt-4">
+                        <div>
+                           <p class="text-sm text-gray-500">Land Owner</p>
+                           <p class="font-semibold text-gray-800">${props.owner}</p>
+                        </div>
+                        <div>
+                           <p class="text-sm text-gray-500">Area (Hectares)</p>
+                           <p class="font-semibold text-gray-800">${props.area_ha}</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <p class="text-sm text-gray-500">FRA Status</p>
+                        <p class="font-semibold text-gray-800">${props.fra_status}</p>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <h4 class="font-bold text-md text-gray-700 mb-2">Land Characteristics</h4>
+                        <div class="space-y-2 text-sm">
+                            <p><span class="font-semibold">Soil Type:</span> ${props.soil_type}</p>
+                            <p><span class="font-semibold">Water Source:</span> ${props.water_source}</p>
+                            <p><span class="font-semibold">Residential:</span> ${props.is_residential ? 'Yes' : 'No'}</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-bold text-md text-gray-700 mb-2">Applicable Govt. Schemes</h4>
+                        <ul class="list-disc list-inside text-sm space-y-1 text-gray-800">
+                            ${props.schemes.map(s => `<li>${s}</li>`).join('')}
+                        </ul>
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                         <h4 class="font-bold text-md text-gray-700 mb-2">AI Generated Atlas Report</h4>
+                         <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">Land Suitability Score</span>
+                            <span class="text-sm font-bold px-2 py-0.5 rounded-full ${scoreColor}">${props.ai_suitability_score} / 10</span>
+                         </div>
+                         <p class="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">${props.ai_analysis}</p>
+                    </div>
+
+                    <div class="mt-6">
+                        <button id="download-report-btn" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition flex items-center justify-center space-x-2 shadow-md hover:shadow-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            <span>Download Report (PDF)</span>
+                        </button>
+                    </div>
+                `;
+
+                document.getElementById('download-report-btn').addEventListener('click', () => {
+                    downloadReport(props);
+                });
+
+                infoPanelContainer.classList.remove('translate-x-[110%]');
+            }
+
+            function downloadReport(props) {
+                const reportElement = document.getElementById('info-details').cloneNode(true);
+                // Remove the button from the cloned element to not include it in the PDF
+                const buttonContainer = reportElement.querySelector('#download-report-btn').parentElement;
+                if (buttonContainer) {
+                    buttonContainer.remove();
+                }
+
+                const opt = {
+                    margin:       0.5,
+                    filename:     `Report-${props.land_id}.pdf`,
+                    image:        { type: 'jpeg', quality: 0.98 },
+                    html2canvas:  { scale: 2, useCORS: true },
+                    jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+                };
+
+                // Create a container for the PDF content, including a header
+                const pdfContent = document.createElement('div');
+                pdfContent.innerHTML = `
+                    <div style="padding: 1rem; border-bottom: 2px solid #e5e7eb; margin-bottom: 1.5rem; text-align: center; font-family: sans-serif;">
+                        <h1 style="font-size: 1.5rem; font-weight: 700; color: #1f2937;">Land Parcel Report</h1>
+                        <p style="font-size: 1rem; color: #4b5563;">Ministry of Tribal Affairs Geo-Portal</p>
+                    </div>
+                `;
+                pdfContent.appendChild(reportElement);
+
+                // Use html2pdf to generate and save the PDF
+                html2pdf().from(pdfContent).set(opt).save();
+            }
+
+            function closeInfoPanel() {
+                infoPanelContainer.classList.add('translate-x-[110%]');
+                 if (selectedParcelLayer) {
+                    landParcelsLayer.resetStyle(selectedParcelLayer);
+                    selectedParcelLayer = null;
+                }
+                setTimeout(() => {
+                    infoDefault.classList.remove('hidden');
+                    infoDetails.classList.add('hidden');
+                }, 500); // Wait for transition to finish
+            }
+
+            document.getElementById('close-info-panel').addEventListener('click', closeInfoPanel);
+            map.on('click', (e) => {
+                // Check if the click was on a feature
+                let featureClicked = false;
+                map.eachLayer(layer => {
+                    if (layer.getBounds && layer.getBounds().contains(e.latlng) && layer.feature) {
+                        featureClicked = true;
+                    }
+                });
+                if(!e.originalEvent.target.closest('.leaflet-interactive')) {
+                     closeInfoPanel();
+                }
+            });
+
+        });
+    </script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
